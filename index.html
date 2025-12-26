@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elite Medical Runner Dashboard</title>
+    <style>
+        :root {
+            --bg: #191919; --card: #202020; --border: #2f2f2f; --text: #e3e3e3;
+            --run: #2383e2; --ielts: #9065e0; --amc: #eb5757; --jp: #d4408a; --str: #27ae60; --work: #f2994a;
+        }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 20px; }
+        .dashboard { max-width: 900px; margin: 0 auto; }
+        
+        /* Header & Progress */
+        .header { background: var(--card); padding: 25px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-top: 20px; }
+        .prog-item { text-align: center; }
+        .bar-bg { background: #373737; height: 6px; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+        .bar-fill { height: 100%; width: 0%; transition: 0.8s; }
+
+        /* Weekly Layout */
+        .week-container { background: var(--card); border-radius: 12px; border: 1px solid var(--border); padding: 20px; margin-bottom: 30px; }
+        .week-title { font-size: 1.4em; font-weight: 700; margin-bottom: 20px; color: var(--run); display: flex; align-items: center; justify-content: space-between; }
+        
+        /* Work List Area */
+        .work-section { background: rgba(242, 153, 74, 0.1); border: 1px dashed var(--work); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .work-input { background: transparent; border: none; color: var(--work); width: 100%; font-size: 14px; outline: none; }
+
+        /* Day Grid - Multi Column for Wide Screen */
+        .day-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px; }
+        .day-card { background: #252525; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+        .day-label { font-size: 0.8em; font-weight: bold; opacity: 0.6; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        
+        /* Task Styling */
+        .task-row { display: flex; align-items: flex-start; margin-bottom: 8px; cursor: pointer; padding: 6px; border-radius: 6px; transition: 0.2s; }
+        .task-row:hover { background: #2f2f2f; }
+        .task-row.done { opacity: 0.4; text-decoration: line-through; }
+        
+        .checkbox { min-width: 18px; height: 18px; border: 2px solid #4f4f4f; border-radius: 4px; margin-right: 10px; position: relative; }
+        .done .checkbox { background: var(--str); border-color: var(--str); }
+        .done .checkbox::after { content: '✓'; color: white; position: absolute; left: 3px; top: -2px; font-size: 12px; font-weight: bold; }
+
+        .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 4px; display: inline-block; color: white; }
+        .task-name { font-size: 13px; font-weight: 500; }
+        .task-desc { font-size: 11px; opacity: 0.5; }
+
+        .editable-amc { color: var(--amc); border-bottom: 1px solid #444; cursor: text; padding: 2px 0; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <div class="header">
+        <div style="font-size: 0.8em; opacity: 0.5; letter-spacing: 2px;">2026 TRIPLE-GOAL MASTER</div>
+        <h2 style="margin: 10px 0;">醫師跑者：終極五軌計畫</h2>
+        <div class="progress-grid">
+            <div class="prog-item">🏃 Run <div class="bar-bg"><div id="r-fill" class="bar-fill" style="background: var(--run)"></div></div></div>
+            <div class="prog-item">🇬🇧 IELTS <div class="bar-bg"><div id="i-fill" class="bar-fill" style="background: var(--ielts)"></div></div></div>
+            <div class="prog-item">⚕️ AMC <div class="bar-bg"><div id="a-fill" class="bar-fill" style="background: var(--amc)"></div></div></div>
+            <div class="prog-item">🇯🇵 JP (N3) <div class="bar-bg"><div id="j-fill" class="bar-fill" style="background: var(--jp)"></div></div></div>
+            <div class="prog-item">🧘 STR <div class="bar-bg"><div id="s-fill" class="bar-fill" style="background: var(--str)"></div></div></div>
+        </div>
+    </div>
+
+    <div id="content-render"></div>
+</div>
+
+<script>
+    const startDate = new Date('2025-12-29');
+    const dayMeta = [
+        { t: "IELTS", tag: "tag-ielts", color: "var(--ielts)", n: "雅思 45m", d: "寫作/閱讀" },
+        { t: "JP", tag: "tag-jp", color: "var(--jp)", n: "日文 N3", d: "3月衝刺計畫" },
+        { t: "IELTS", tag: "tag-ielts", color: "var(--ielts)", n: "雅思 45m", d: "聽力/口說" },
+        { t: "JP", tag: "tag-jp", color: "var(--jp)", n: "日文 N3", d: "模擬聽力" },
+        { t: "IELTS", tag: "tag-ielts", color: "var(--ielts)", n: "雅思 45m", d: "真題模擬" },
+        { t: "JP", tag: "tag-jp", color: "var(--jp)", n: "日文 N3", d: "對話練習" },
+        { t: "IELTS", tag: "tag-ielts", color: "var(--ielts)", n: "複習日", d: "弱點分析" }
+    ];
+    const runMeta = ["T跑 10k", "休息", "M跑 12k", "休息", "休息", "LSD 18-30k", "休息"];
+
+    const render = document.getElementById('content-render');
+
+    for (let w = 0; w < 12; w++) {
+        const weekDiv = document.createElement('div');
+        weekDiv.className = 'week-container';
+        
+        const workId = `w${w}-work`;
+        const workDone = localStorage.getItem(workId + '-done') === 'true';
+        
+        weekDiv.innerHTML = `
+            <div class="week-title">Week ${w+1} <span style="font-size: 0.5em; opacity: 0.5">Jan - Mar Cycle</span></div>
+            <div class="work-section ${workDone ? 'done' : ''}">
+                <div style="display:flex; align-items:center;">
+                    <div class="checkbox" onclick="toggleWork('${workId}')"></div>
+                    <input class="work-input" placeholder="點擊編輯本週工作清單 (e.g. 醫院評鑑、值班調整)..." 
+                           value="${localStorage.getItem(workId+'-val') || ''}" 
+                           onchange="saveWork('${workId}', this.value)">
+                </div>
+            </div>
+            <div class="day-grid" id="week-${w}-days"></div>
+        `;
+        render.appendChild(weekDiv);
+
+        const grid = document.getElementById(`week-${w}-days`);
+        for (let d = 0; d < 7; d++) {
+            const id = `w${w}d${d}`;
+            const cur = new Date(startDate);
+            cur.setDate(startDate.getDate() + (w * 7) + d);
+            const dateStr = `${cur.getMonth()+1}/${cur.getDate()}`;
+            
+            const card = document.createElement('div');
+            card.className = 'day-card';
+            card.innerHTML = `
+                <div class="day-label">${dateStr} <span>${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d]}</span></div>
+                
+                <div class="task-row ${localStorage.getItem(id+'-main')?'done':''}" onclick="toggleTask('${id}','main')">
+                    <div class="checkbox"></div>
+                    <div>
+                        <span class="tag" style="background:${dayMeta[d].color}">${dayMeta[d].t}</span>
+                        <div class="task-name">${dayMeta[d].n}</div>
+                    </div>
+                </div>
+
+                <div class="task-row ${localStorage.getItem(id+'-run')?'done':''}" onclick="toggleTask('${id}','run')">
+                    <div class="checkbox"></div>
+                    <div>
+                        <span class="tag" style="background:var(--run)">RUN/STR</span>
+                        <div class="task-name">${runMeta[d] || 'Stretch Only'}</div>
+                        <div class="task-desc">25m 肌力與伸展</div>
+                    </div>
+                </div>
+
+                <div class="editable-amc" onclick="editAmc('${id}')" id="${id}-amc">
+                    ⚕️ AMC: ${localStorage.getItem(id+'-amc') || '1h MCQ 練習'}
+                </div>
+            `;
+            grid.appendChild(card);
+        }
+    }
+
+    function toggleTask(id, type) {
+        const key = id + '-' + type;
+        const s = localStorage.getItem(key);
+        s ? localStorage.removeItem(key) : localStorage.setItem(key, 'true');
+        location.reload(); 
+    }
+
+    function toggleWork(id) {
+        const s = localStorage.getItem(id + '-done');
+        s ? localStorage.removeItem(id + '-done') : localStorage.setItem(id + '-done', 'true');
+        location.reload();
+    }
+
+    function saveWork(id, val) { localStorage.setItem(id + '-val', val); }
+
+    function editAmc(id) {
+        const t = prompt("AMC MCQ 進度備註：", document.getElementById(id+'-amc').innerText);
+        if(t) { localStorage.setItem(id+'-amc', t); location.reload(); }
+    }
+
+    function updateBars() {
+        let r=0, i=0, j=0, s=0, rt=0, it=0, jt=0;
+        for(let k=0; k<84; k++) {
+            const id = `w${Math.floor(k/7)}d${k%7}`;
+            const type = dayMeta[k%7].t;
+            if(localStorage.getItem(id+'-main')) { if(type==='IELTS') i++; else j++; }
+            if(localStorage.getItem(id+'-run')) { r++; s++; }
+            if(type==='IELTS') it++; else jt++; rt++;
+        }
+        document.getElementById('r-fill').style.width = (r/84*100)+'%';
+        document.getElementById('i-fill').style.width = (i/it*100)+'%';
+        document.getElementById('j-fill').style.width = (j/jt*100)+'%';
+        document.getElementById('s-fill').style.width = (s/84*100)+'%';
+    }
+    updateBars();
+</script>
+</body>
+</html>
